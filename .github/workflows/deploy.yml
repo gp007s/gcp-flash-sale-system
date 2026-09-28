@@ -43,10 +43,10 @@ jobs:
         env:
           CLOUDSDK_PYTHON: python3
         run: |
-          gcloud compute ssh flash-sale-vm --zone=us-east1-b --tunnel-through-iap \
-            --verbosity=debug \
-            --ssh-flag="-v" \
-            --command="
-              pkill -f app.jar || true
-              nohup java -jar app.jar > output.log 2>&1 &
-            "
+          gcloud compute ssh flash-sale-vm --zone=us-east1-b --tunnel-through-iap --command='
+            for pid in $(pgrep -f app.jar); do
+              [ "$pid" != "$$" ] && kill "$pid"
+            done
+            nohup java -jar app.jar > output.log 2>&1 &
+            disown
+          '
