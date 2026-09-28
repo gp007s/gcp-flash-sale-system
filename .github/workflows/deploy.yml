@@ -29,12 +29,19 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      - name: Install NumPy for faster IAP tunneling
+        run: pip3 install --break-system-packages numpy
+
       - name: Copy JAR to VM
+        env:
+          CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
             flash-sale-vm:~/app.jar --zone=us-east1-b --tunnel-through-iap
 
       - name: Restart the app
+        env:
+          CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh flash-sale-vm --zone=us-east1-b --tunnel-through-iap --command="
             pkill -f app.jar || true
