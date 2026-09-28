@@ -32,11 +32,11 @@ jobs:
       - name: Copy JAR to VM
         run: |
           gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            flash-sale-vm:~/app.jar --zone=us-east1-b
+            flash-sale-vm:~/app.jar --zone=us-east1-b --tunnel-through-iap
 
       - name: Restart the app
         run: |
-          gcloud compute ssh flash-sale-vm --zone=us-east1-b --command="
+          gcloud compute ssh flash-sale-vm --zone=us-east1-b --tunnel-through-iap --command="
             pkill -f app.jar || true
             nohup java -jar app.jar > output.log 2>&1 &
           "
