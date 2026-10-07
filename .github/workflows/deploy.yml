@@ -47,9 +47,18 @@ jobs:
             for pid in $(pgrep -f app.jar); do
               [ "$pid" != "$$" ] && kill "$pid"
             done
-            set -a
-            [ -f "$HOME/flashsale.env" ] && . "$HOME/flashsale.env"
-            set +a
-            nohup java -jar app.jar > output.log 2>&1 &
+            # Build -D flags for dotted keys, export plain env vars for the rest
+            JVM_ARGS=""
+            if [ -f "$HOME/flashsale.env" ]; then
+              while IFS="=" read -r key value; do
+                [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+                if [[ "$key" == *.* ]]; then
+                  JVM_ARGS="$JVM_ARGS -D${key}=${value}"
+                else
+                  export "$key=$value"
+                fi
+              done < "$HOME/flashsale.env"
+            fi
+            nohup java $JVM_ARGS -jar app.jar > output.log 2>&1 &
             disown
           '
