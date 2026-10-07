@@ -31,12 +31,15 @@ class OrderFulfillmentServiceTest {
     @Mock
     ReceiptService receiptService;
 
+    @Mock
+    NotificationService notificationService;
+
     OrderFulfillmentService service;
     OrderFulfillmentDTO order;
 
     @BeforeEach
     void setUp() {
-        service = new OrderFulfillmentService(repository, redisService, receiptService);
+        service = new OrderFulfillmentService(repository, redisService, receiptService, notificationService);
         order = new OrderFulfillmentDTO();
         order.setOrderId("ORD1");
         order.setItemDetails("iphone");
@@ -51,6 +54,7 @@ class OrderFulfillmentServiceTest {
 
         verify(repository).save(any(OrderFulfillmentData.class));
         verify(receiptService).createAndStoreReceipt(order);
+        verify(notificationService).sendOrderNotification(order);
         verify(redisService, never()).increment(any(), org.mockito.ArgumentMatchers.anyInt());
     }
 
@@ -90,6 +94,16 @@ class OrderFulfillmentServiceTest {
     void orderStaysFulfilledWhenTheReceiptFails() throws Exception {
         when(repository.existsByOrderId("ORD1")).thenReturn(false);
         doThrow(new RuntimeException("bucket down")).when(receiptService).createAndStoreReceipt(any());
+
+        assertTrue(service.processOrder(order));
+
+        verify(redisService, never()).increment(any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void aNotificationFailureDoesNotFailTheOrder() throws Exception {
+        when(repository.existsByOrderId("ORD1")).thenReturn(false);
+        doThrow(new RuntimeException("topic down")).when(notificationService).sendOrderNotification(order);
 
         assertTrue(service.processOrder(order));
 
