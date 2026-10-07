@@ -22,14 +22,17 @@ public class OrderFulfillmentService {
     private final OrderFulfillmentRepository repository;
     private final RedisService redisService;
     private final ReceiptService receiptService;
+    private final NotificationService notificationService;
 
     public OrderFulfillmentService(
             OrderFulfillmentRepository repository,
             RedisService redisService,
-            ReceiptService receiptService) {
+            ReceiptService receiptService,
+            NotificationService notificationService) {
         this.repository = repository;
         this.redisService = redisService;
         this.receiptService = receiptService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -64,6 +67,13 @@ public class OrderFulfillmentService {
             receiptService.createAndStoreReceipt(order);
         } catch (Exception e) {
             log.warn("Order {} is fulfilled but the receipt could not be stored", order.getOrderId(), e);
+        }
+
+        // Notification is also best-effort: never fail the order over it.
+        try {
+            notificationService.sendOrderNotification(order);
+        } catch (Exception e) {
+            log.warn("Order {} is fulfilled but the notification could not be sent", order.getOrderId(), e);
         }
         return true;
     }
