@@ -38,7 +38,7 @@ public class NotificationService {
 
     public void sendOrderNotification(OrderFulfillmentDTO order) throws Exception {
         String body = String.format(
-                "Order %s fulfilled for %s — %s x%d — $%.2f",
+                "Order %s fulfilled for %s — %s x%d — $%d",
                 order.getOrderId(),
                 order.getUserName(),
                 order.getItemDetails(),
