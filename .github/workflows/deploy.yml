@@ -140,12 +140,14 @@ jobs:
                --project=${{ env.PROJECT_ID }} > /dev/null 2>&1; then
             gcloud pubsub subscriptions modify-push-config "$SUB_NAME" \
               --push-endpoint="$PUSH_ENDPOINT" \
+              --push-auth-service-account="flash-sale-vm-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
               --project=${{ env.PROJECT_ID }}
             echo "Updated push endpoint to $PUSH_ENDPOINT"
           else
             gcloud pubsub subscriptions create "$SUB_NAME" \
               --topic=orders \
               --push-endpoint="$PUSH_ENDPOINT" \
+              --push-auth-service-account="flash-sale-vm-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
               --ack-deadline=60 \
               --project=${{ env.PROJECT_ID }}
             echo "Created push subscription $SUB_NAME -> $PUSH_ENDPOINT"
