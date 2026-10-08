@@ -1,10 +1,16 @@
-name: Deploy to Compute Engine
+name: Deploy Flash Sale System
 
 on:
   push:
     branches: [main, add-notification-service]
 
+env:
+  PROJECT_ID: gcp-flash-sale-project
+  REGION: us-east1
+  CLOUD_RUN_SERVICE: flash-sale-fulfilment
+
 jobs:
+  # ── Job 1: Deploy API role to Compute Engine VM (unchanged) ───────────────
   deploy:
     runs-on: ubuntu-latest
     permissions:
@@ -62,3 +68,87 @@ jobs:
             nohup java $JVM_ARGS -jar app.jar > output.log 2>&1 &
             disown
           '
+
+  # ── Job 2: Build and deploy fulfilment role to Cloud Run ──────────────────
+  deploy-fulfilment:
+    name: Deploy Fulfilment to Cloud Run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/568677222977/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'flash-sale-cicd@gcp-flash-sale-project.iam.gserviceaccount.com'
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/flash-sale/fulfilment:${{ github.sha }}
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --image "$IMAGE" \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --service-account flash-sale-vm-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --no-allow-unauthenticated \
+            --set-env-vars "GCP_PROJECT=${{ env.PROJECT_ID }}" \
+            --set-env-vars "SPRING_PROFILES_ACTIVE=fulfilment" \
+            --set-env-vars "GCS_BUCKET=gcp-flash-sale-receipts" \
+            --set-env-vars "NOTIFICATIONS_TOPIC=order-notifications" \
+            --set-env-vars "PUBSUB_TOPIC=orders" \
+            --set-env-vars "REDIS_SSL=false" \
+            --update-secrets "REDIS_HOST=REDIS_HOST:latest" \
+            --update-secrets "REDIS_PORT=REDIS_PORT:latest" \
+            --update-secrets "REDIS_PASSWORD=REDIS_PASSWORD:latest" \
+            --update-secrets "DB_URL=DB_URL:latest" \
+            --update-secrets "DB_USER=DB_USER:latest" \
+            --update-secrets "DB_PASSWORD=DB_PASSWORD:latest" \
+            --min-instances 0 \
+            --max-instances 3 \
+            --memory 512Mi \
+            --timeout 60
+
+      - name: Wire Pub/Sub push subscription to Cloud Run
+        run: |
+          FULFILMENT_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --region ${{ env.REGION }} \
+            --format='value(status.url)')
+
+          PUSH_ENDPOINT="${FULFILMENT_URL}/pubsub/push"
+          SUB_NAME="orders-fulfilment-push"
+
+          gcloud run services add-iam-policy-binding ${{ env.CLOUD_RUN_SERVICE }} \
+            --region ${{ env.REGION }} \
+            --member="serviceAccount:service-568677222977@gcp-sa-pubsub.iam.gserviceaccount.com" \
+            --role="roles/run.invoker"
+
+          if gcloud pubsub subscriptions describe "$SUB_NAME" \
+               --project=${{ env.PROJECT_ID }} > /dev/null 2>&1; then
+            gcloud pubsub subscriptions modify-push-config "$SUB_NAME" \
+              --push-endpoint="$PUSH_ENDPOINT" \
+              --push-auth-service-account="service-568677222977@gcp-sa-pubsub.iam.gserviceaccount.com" \
+              --project=${{ env.PROJECT_ID }}
+            echo "Updated push endpoint to $PUSH_ENDPOINT"
+          else
+            gcloud pubsub subscriptions create "$SUB_NAME" \
+              --topic=orders \
+              --push-endpoint="$PUSH_ENDPOINT" \
+              --push-auth-service-account="service-568677222977@gcp-sa-pubsub.iam.gserviceaccount.com" \
+              --ack-deadline=60 \
+              --project=${{ env.PROJECT_ID }}
+            echo "Created push subscription $SUB_NAME -> $PUSH_ENDPOINT"
+          fi
