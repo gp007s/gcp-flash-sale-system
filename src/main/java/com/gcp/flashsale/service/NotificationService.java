@@ -31,7 +31,7 @@ public class NotificationService {
 
     public NotificationService(
             @Value("${flashsale.pubsub.project}") String project,
-            @Value("${NOTIFICATIONS_TOPIC:order-notifications}") String notificationsTopic) {
+            @Value("${flashsale.notifications.topic:order-notifications}") String notificationsTopic) {
         this.project = project;
         this.notificationsTopic = notificationsTopic;
     }
