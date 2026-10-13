@@ -68,9 +68,9 @@ jobs:
 
           SSH_OPTS="-i ~/.ssh/google_compute_engine -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2200"
 
-          ssh $SSH_OPTS govind07aws@127.0.0.1 'sudo pkill -f app.jar || true'
-          scp $SSH_OPTS target/gcp-flash-sale-system-0.0.1.jar govind07aws@127.0.0.1:~/app.jar
-          ssh $SSH_OPTS govind07aws@127.0.0.1 \
+          ssh $SSH_OPTS gp007s@127.0.0.1 'sudo pkill -f app.jar || true'
+          scp $SSH_OPTS target/gcp-flash-sale-system-0.0.1.jar gp007s@127.0.0.1:~/app.jar
+          ssh $SSH_OPTS gp007s@127.0.0.1 \
             'nohup /usr/bin/java -Dflashsale.role=api -Dflashsale.pubsub.project=gcp-flash-sale-project -Dflashsale.pubsub.topic=orders -Dflashsale.admin-key=flash-admin-2024 -DSPRING_PROFILES_ACTIVE=api -DREDIS_HOST=10.142.0.3 -DREDIS_PORT=6379 -jar ~/app.jar > ~/output.log 2>&1 & disown'
 
   # ── Job 2: Build and deploy fulfilment role to Cloud Run ──────────────────
