@@ -10,7 +10,7 @@ env:
   CLOUD_RUN_SERVICE: flash-sale-fulfilment
 
 jobs:
-  # ── Job 1: Deploy API role to Compute Engine VM ───────────────────────────
+  # ── Job 1: Deploy API role to Compute Engine VM (unchanged) ───────────────
   deploy:
     runs-on: ubuntu-latest
     permissions:
@@ -38,40 +38,36 @@ jobs:
       - name: Install NumPy for faster IAP tunneling
         run: pip3 install --break-system-packages numpy
 
-      - name: Set up SSH key
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.GCE_SSH_PRIVATE_KEY }}" > ~/.ssh/google_compute_engine
-          chmod 600 ~/.ssh/google_compute_engine
-          ssh-keygen -l -f ~/.ssh/google_compute_engine && echo "Key is valid" || echo "Key is INVALID"
-
-      - name: Deploy to flash-sale-vm
+      - name: Copy JAR to VM
         env:
           CLOUDSDK_PYTHON: python3
         run: |
-          gcloud compute start-iap-tunnel flash-sale-vm 22 \
-            --local-host-port=localhost:2200 \
-            --zone=us-east1-b \
-            --project=gcp-flash-sale-project &
-          TUNNEL_PID=$!
+          gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
+            flash-sale-vm:~/app.jar --zone=us-east1-b --tunnel-through-iap
 
-          for i in $(seq 1 30); do
-            if nc -z 127.0.0.1 2200 2>/dev/null; then
-              echo "Tunnel ready after ${i}s"
-              break
+      - name: Restart the app
+        env:
+          CLOUDSDK_PYTHON: python3
+        run: |
+          gcloud compute ssh flash-sale-vm --zone=us-east1-b --tunnel-through-iap --command='
+            for pid in $(pgrep -f app.jar); do
+              [ "$pid" != "$$" ] && kill "$pid"
+            done
+            # Build -D flags for dotted keys, export plain env vars for the rest
+            JVM_ARGS=""
+            if [ -f "$HOME/flashsale.env" ]; then
+              while IFS="=" read -r key value; do
+                [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+                if [[ "$key" == *.* ]]; then
+                  JVM_ARGS="$JVM_ARGS -D${key}=${value}"
+                else
+                  export "$key=$value"
+                fi
+              done < "$HOME/flashsale.env"
             fi
-            echo "Waiting for tunnel... ${i}s"
-            sleep 1
-          done
-          nc -z 127.0.0.1 2200 || { echo "Tunnel never opened"; kill $TUNNEL_PID; exit 1; }
-
-          SSH_OPTS="-i ~/.ssh/google_compute_engine -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2200"
-
-          ssh $SSH_OPTS gp007s@127.0.0.1 'sudo pkill -f app.jar || true'
-          scp $SSH_OPTS target/gcp-flash-sale-system-0.0.1.jar gp007s@127.0.0.1:~/app.jar
-          ssh $SSH_OPTS gp007s@127.0.0.1 \
-            'nohup /usr/bin/java -Dflashsale.role=api -Dflashsale.pubsub.project=gcp-flash-sale-project -Dflashsale.pubsub.topic=orders -Dflashsale.admin-key=flash-admin-2024 -DSPRING_PROFILES_ACTIVE=api -DREDIS_HOST=10.142.0.3 -DREDIS_PORT=6379 -jar ~/app.jar > ~/output.log 2>&1 & disown'
+            nohup java $JVM_ARGS -jar app.jar > output.log 2>&1 &
+            disown
+          '
 
   # ── Job 2: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
