@@ -65,13 +65,20 @@ jobs:
       - name: Install NumPy for faster IAP tunneling
         run: pip3 install --break-system-packages numpy
 
-      - name: Deploy JAR and restart VM-1
+      - name: Copy JAR to VM-1
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
             --ssh-flag="-o ServerAliveInterval=30" \
-            --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar && sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
+            --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar"
+
+      - name: Restart app on VM-1
+        env:
+          CLOUDSDK_PYTHON: python3
+        run: |
+          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --command="sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
 
   # ── Job 2: Deploy API role to VM-2 ────────────────────────────────────────
   deploy-vm2:
@@ -93,13 +100,20 @@ jobs:
       - name: Install NumPy for faster IAP tunneling
         run: pip3 install --break-system-packages numpy
 
-      - name: Deploy JAR and restart VM-2
+      - name: Copy JAR to VM-2
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
             --ssh-flag="-o ServerAliveInterval=30" \
-            --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar && sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
+            --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar"
+
+      - name: Restart app on VM-2
+        env:
+          CLOUDSDK_PYTHON: python3
+        run: |
+          gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --command="sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
 
   # ── Job 3: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
