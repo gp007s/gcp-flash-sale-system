@@ -67,33 +67,25 @@ jobs:
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap --command='java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)'
 
+      - name: Fetch secrets for VM restart
+        run: |
+          echo "REDIS_HOST=$(gcloud secrets versions access latest --secret=REDIS_HOST_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
+          echo "REDIS_PORT=$(gcloud secrets versions access latest --secret=REDIS_PORT_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
+          echo "ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
+
       - name: Restart the app on VM-1
         env:
           CLOUDSDK_PYTHON: python3
         run: |
-          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap --command='
-            REDIS_HOST=$(gcloud secrets versions access latest --secret=REDIS_HOST_MEMORYSTORE --project=gcp-flash-sale-project)
-            REDIS_PORT=$(gcloud secrets versions access latest --secret=REDIS_PORT_MEMORYSTORE --project=gcp-flash-sale-project)
-            ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=gcp-flash-sale-project)
-            pkill -f app.jar || true
-            sleep 1
-            nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar ~/app.jar > /tmp/output.log 2>&1 &
-            disown
-          '
+          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --command="pkill -f app.jar || true; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar ~/app.jar > /tmp/output.log 2>&1 & disown"
 
       - name: Restart the app on VM-2
         env:
           CLOUDSDK_PYTHON: python3
         run: |
-          gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap --command='
-            REDIS_HOST=$(gcloud secrets versions access latest --secret=REDIS_HOST_MEMORYSTORE --project=gcp-flash-sale-project)
-            REDIS_PORT=$(gcloud secrets versions access latest --secret=REDIS_PORT_MEMORYSTORE --project=gcp-flash-sale-project)
-            ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=gcp-flash-sale-project)
-            pkill -f app.jar || true
-            sleep 1
-            nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar ~/app.jar > /tmp/output.log 2>&1 &
-            disown
-          '
+          gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --command="pkill -f app.jar || true; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar ~/app.jar > /tmp/output.log 2>&1 & disown"
 
   # ── Job 2: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
