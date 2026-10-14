@@ -2,7 +2,7 @@ name: Deploy Flash Sale System
 
 on:
   push:
-    branches: [main, add-notification-service, deploy-vm-cicd]
+    branches: [main, add-notification-service, deploy-vm-cicd, systemd-vm-deploy]
 
 env:
   PROJECT_ID: gcp-flash-sale-project
@@ -49,30 +49,16 @@ jobs:
           for i in 1 2 3; do
             gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
               ${{ env.VM_NAME }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap && break
-            echo "Attempt $i failed, retrying..."
+            echo "Attempt $i failed, retrying in 5s..."
             sleep 5
           done
 
-      - name: Ensure Java 17 on VM-1
-        env:
-          CLOUDSDK_PYTHON: python3
-        run: |
-          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command='java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)'
-
-      - name: Fetch secrets
-        run: |
-          echo "REDIS_HOST=$(gcloud secrets versions access latest --secret=REDIS_HOST_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
-          echo "REDIS_PORT=$(gcloud secrets versions access latest --secret=REDIS_PORT_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
-          echo "ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
-
       - name: Restart app on VM-1
-        continue-on-error: true
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command="pkill -f /tmp/app.jar 2>/dev/null; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar /tmp/app.jar > /tmp/output.log 2>&1 &"
+            --command="sudo systemctl restart flash-sale"
 
   # ── Job 2: Deploy API role to VM-2 ────────────────────────────────────────
   deploy-vm2:
@@ -110,30 +96,16 @@ jobs:
           for i in 1 2 3; do
             gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
               ${{ env.VM_NAME_2 }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap && break
-            echo "Attempt $i failed, retrying..."
+            echo "Attempt $i failed, retrying in 5s..."
             sleep 5
           done
 
-      - name: Ensure Java 17 on VM-2
-        env:
-          CLOUDSDK_PYTHON: python3
-        run: |
-          gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command='java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)'
-
-      - name: Fetch secrets
-        run: |
-          echo "REDIS_HOST=$(gcloud secrets versions access latest --secret=REDIS_HOST_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
-          echo "REDIS_PORT=$(gcloud secrets versions access latest --secret=REDIS_PORT_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
-          echo "ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
-
       - name: Restart app on VM-2
-        continue-on-error: true
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command="pkill -f /tmp/app.jar 2>/dev/null; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar /tmp/app.jar > /tmp/output.log 2>&1 &"
+            --command="sudo systemctl restart flash-sale"
 
   # ── Job 3: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
