@@ -17,7 +17,7 @@ public class HealthController {
     public ResponseEntity<String> checkHealth() {
         try {
             InetAddress localHost = InetAddress.getLocalHost();
-            return ResponseEntity.ok("GCP FlashSaleSystem is running on the Host/IP : "
+            return ResponseEntity.ok("GCP FlashSaleSystem v2 ✅ — running on Host/IP: "
                     + localHost.getHostName() + "/" + localHost.getHostAddress());
         } catch (UnknownHostException e) {
             return ResponseEntity.ok("FlashSaleSystem is healthy");
