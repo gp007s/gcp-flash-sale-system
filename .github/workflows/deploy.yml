@@ -118,6 +118,7 @@ jobs:
             --update-secrets "DB_URL=CLOUDSQL_URL:latest" \
             --update-secrets "DB_USER=CLOUDSQL_USER:latest" \
             --update-secrets "DB_PASSWORD=CLOUDSQL_PASSWORD:latest" \
+            --vpc-connector flash-sale-connector \
             --min-instances 0 \
             --max-instances 3 \
             --memory 512Mi \
