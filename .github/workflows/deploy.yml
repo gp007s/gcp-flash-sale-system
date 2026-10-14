@@ -47,6 +47,14 @@ jobs:
           gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
             ${{ env.VM_NAME }}:~/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
 
+      - name: Ensure Java 17 is installed on VM
+        env:
+          CLOUDSDK_PYTHON: python3
+        run: |
+          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap --command='
+            java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)
+          '
+
       - name: Restart the app
         env:
           CLOUDSDK_PYTHON: python3
@@ -67,7 +75,7 @@ jobs:
                 fi
               done < "$HOME/flashsale.env"
             fi
-            nohup java $JVM_ARGS -jar app.jar > output.log 2>&1 &
+            nohup java $JVM_ARGS -jar app.jar > /tmp/output.log 2>&1 &
             disown
           '
 
