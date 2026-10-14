@@ -72,26 +72,26 @@ jobs:
           gcloud auth list
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
             --ssh-flag="-o ServerAliveInterval=30 -o ServerAliveCountMax=10" \
-            --command="
-              set -e
-              echo 'Downloading JAR...'
-              gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar
-              echo 'Restarting service...'
-              sudo systemctl restart flash-sale
-              echo 'Waiting for app to start...'
-              for i in {1..12}; do
-                sleep 5
-                if curl -sf localhost:8080/health > /dev/null 2>&1; then
-                  echo 'App is up:'
-                  curl -s localhost:8080/health
-                  exit 0
-                fi
-                echo "Attempt $i: not up yet..."
-              done
-              echo 'App did not come up in 60s'
-              sudo journalctl -u flash-sale -n 30 --no-pager
-              exit 1
-            "
+            --command='bash -s' << 'ENDSSH'
+          set -e
+          echo 'Downloading JAR...'
+          gsutil cp gs://gcp-flash-sale-receipts/deploy/app.jar /tmp/app.jar
+          echo 'Restarting service...'
+          sudo systemctl restart flash-sale
+          echo 'Waiting for app to start...'
+          for i in $(seq 1 12); do
+            sleep 5
+            if curl -sf localhost:8080/health > /dev/null 2>&1; then
+              echo 'App is up:'
+              curl -s localhost:8080/health
+              exit 0
+            fi
+            echo "Attempt $i: not up yet..."
+          done
+          echo 'App did not come up in 60s'
+          sudo journalctl -u flash-sale -n 30 --no-pager
+          exit 1
+          ENDSSH
 
   # ── Job 2: Deploy API role to VM-2 ────────────────────────────────────────
   deploy-vm2:
@@ -119,26 +119,26 @@ jobs:
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
             --ssh-flag="-o ServerAliveInterval=30 -o ServerAliveCountMax=10" \
-            --command="
-              set -e
-              echo 'Downloading JAR...'
-              gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar
-              echo 'Restarting service...'
-              sudo systemctl restart flash-sale
-              echo 'Waiting for app to start...'
-              for i in {1..12}; do
-                sleep 5
-                if curl -sf localhost:8080/health > /dev/null 2>&1; then
-                  echo 'App is up:'
-                  curl -s localhost:8080/health
-                  exit 0
-                fi
-                echo "Attempt $i: not up yet..."
-              done
-              echo 'App did not come up in 60s'
-              sudo journalctl -u flash-sale -n 30 --no-pager
-              exit 1
-            "
+            --command='bash -s' << 'ENDSSH'
+          set -e
+          echo 'Downloading JAR...'
+          gsutil cp gs://gcp-flash-sale-receipts/deploy/app.jar /tmp/app.jar
+          echo 'Restarting service...'
+          sudo systemctl restart flash-sale
+          echo 'Waiting for app to start...'
+          for i in $(seq 1 12); do
+            sleep 5
+            if curl -sf localhost:8080/health > /dev/null 2>&1; then
+              echo 'App is up:'
+              curl -s localhost:8080/health
+              exit 0
+            fi
+            echo "Attempt $i: not up yet..."
+          done
+          echo 'App did not come up in 60s'
+          sudo journalctl -u flash-sale -n 30 --no-pager
+          exit 1
+          ENDSSH
 
   # ── Job 3: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
