@@ -13,8 +13,9 @@ env:
   CLOUD_RUN_SERVICE: flash-sale-fulfilment
 
 jobs:
-  # ── Job 1: Deploy API role to Compute Engine VM ───────────────────────────
-  deploy:
+  # ── Job 1: Deploy API role to VM-1 ────────────────────────────────────────
+  deploy-vm1:
+    name: Deploy to VM-1
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,49 +46,94 @@ jobs:
         env:
           CLOUDSDK_PYTHON: python3
         run: |
-          gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            ${{ env.VM_NAME }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
+          for i in 1 2 3; do
+            gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
+              ${{ env.VM_NAME }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap && break
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
 
-      - name: Copy JAR to VM-2
+      - name: Ensure Java 17 on VM-1
         env:
           CLOUDSDK_PYTHON: python3
         run: |
-          gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            ${{ env.VM_NAME_2 }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
+          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --command='java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)'
 
-      - name: Ensure Java 17 is installed on VM-1
-        env:
-          CLOUDSDK_PYTHON: python3
-        run: |
-          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap --command='java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)'
-
-      - name: Ensure Java 17 is installed on VM-2
-        env:
-          CLOUDSDK_PYTHON: python3
-        run: |
-          gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap --command='java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)'
-
-      - name: Fetch secrets for VM restart
+      - name: Fetch secrets
         run: |
           echo "REDIS_HOST=$(gcloud secrets versions access latest --secret=REDIS_HOST_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
           echo "REDIS_PORT=$(gcloud secrets versions access latest --secret=REDIS_PORT_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
           echo "ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
 
-      - name: Restart the app on VM-1
+      - name: Restart app on VM-1
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
             --command="pkill -f /tmp/app.jar 2>/dev/null; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar /tmp/app.jar > /tmp/output.log 2>&1 &"
 
-      - name: Restart the app on VM-2
+  # ── Job 2: Deploy API role to VM-2 ────────────────────────────────────────
+  deploy-vm2:
+    name: Deploy to VM-2
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build JAR
+        run: mvn -B clean package -DskipTests
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/568677222977/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'flash-sale-cicd@gcp-flash-sale-project.iam.gserviceaccount.com'
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install NumPy for faster IAP tunneling
+        run: pip3 install --break-system-packages numpy
+
+      - name: Copy JAR to VM-2
+        env:
+          CLOUDSDK_PYTHON: python3
+        run: |
+          for i in 1 2 3; do
+            gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
+              ${{ env.VM_NAME_2 }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap && break
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+
+      - name: Ensure Java 17 on VM-2
+        env:
+          CLOUDSDK_PYTHON: python3
+        run: |
+          gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --command='java -version 2>/dev/null || (sudo apt-get update -q && sudo apt-get install -y openjdk-17-jre-headless)'
+
+      - name: Fetch secrets
+        run: |
+          echo "REDIS_HOST=$(gcloud secrets versions access latest --secret=REDIS_HOST_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
+          echo "REDIS_PORT=$(gcloud secrets versions access latest --secret=REDIS_PORT_MEMORYSTORE --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
+          echo "ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
+
+      - name: Restart app on VM-2
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
             --command="pkill -f /tmp/app.jar 2>/dev/null; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar /tmp/app.jar > /tmp/output.log 2>&1 &"
 
-  # ── Job 2: Build and deploy fulfilment role to Cloud Run ──────────────────
+  # ── Job 3: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
     name: Deploy Fulfilment to Cloud Run
     runs-on: ubuntu-latest
