@@ -2,15 +2,17 @@ name: Deploy Flash Sale System
 
 on:
   push:
-    branches: [main, add-notification-service]
+    branches: [main, add-notification-service, deploy-vm-cicd]
 
 env:
   PROJECT_ID: gcp-flash-sale-project
   REGION: us-east1
+  ZONE: us-east1-b
+  VM_NAME: flash-sale-vm-1
   CLOUD_RUN_SERVICE: flash-sale-fulfilment
 
 jobs:
-  # ── Job 1: Deploy API role to Compute Engine VM (unchanged) ───────────────
+  # ── Job 1: Deploy API role to Compute Engine VM ───────────────────────────
   deploy:
     runs-on: ubuntu-latest
     permissions:
@@ -43,13 +45,13 @@ jobs:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            flash-sale-vm:~/app.jar --zone=us-east1-b --tunnel-through-iap
+            ${{ env.VM_NAME }}:~/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
 
       - name: Restart the app
         env:
           CLOUDSDK_PYTHON: python3
         run: |
-          gcloud compute ssh flash-sale-vm --zone=us-east1-b --tunnel-through-iap --command='
+          gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap --command='
             for pid in $(pgrep -f app.jar); do
               [ "$pid" != "$$" ] && kill "$pid"
             done
@@ -111,12 +113,13 @@ jobs:
             --set-env-vars "NOTIFICATIONS_TOPIC=order-notifications" \
             --set-env-vars "PUBSUB_TOPIC=orders" \
             --set-env-vars "REDIS_SSL=false" \
-            --update-secrets "REDIS_HOST=REDIS_HOST:latest" \
-            --update-secrets "REDIS_PORT=REDIS_PORT:latest" \
-            --update-secrets "REDIS_PASSWORD=REDIS_PASSWORD:latest" \
-            --update-secrets "DB_URL=DB_URL:latest" \
-            --update-secrets "DB_USER=DB_USER:latest" \
-            --update-secrets "DB_PASSWORD=DB_PASSWORD:latest" \
+            --update-secrets "REDIS_HOST=REDIS_HOST_MEMORYSTORE:latest" \
+            --update-secrets "REDIS_PORT=REDIS_PORT_MEMORYSTORE:latest" \
+            --update-secrets "REDIS_PASSWORD=REDIS_PASSWORD_MEMORYSTORE:latest" \
+            --update-secrets "DB_HOST=CLOUDSQL_HOST:latest" \
+            --update-secrets "DB_NAME=CLOUDSQL_DB_NAME:latest" \
+            --update-secrets "DB_USER=CLOUDSQL_USER:latest" \
+            --update-secrets "DB_PASSWORD=CLOUDSQL_PASSWORD:latest" \
             --min-instances 0 \
             --max-instances 3 \
             --memory 512Mi \
