@@ -115,7 +115,6 @@ jobs:
             --set-env-vars "REDIS_SSL=false" \
             --update-secrets "REDIS_HOST=REDIS_HOST_MEMORYSTORE:latest" \
             --update-secrets "REDIS_PORT=REDIS_PORT_MEMORYSTORE:latest" \
-            --update-secrets "REDIS_PASSWORD=REDIS_PASSWORD_MEMORYSTORE:latest" \
             --update-secrets "DB_HOST=CLOUDSQL_HOST:latest" \
             --update-secrets "DB_NAME=CLOUDSQL_DB_NAME:latest" \
             --update-secrets "DB_USER=CLOUDSQL_USER:latest" \
