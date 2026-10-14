@@ -69,6 +69,7 @@ jobs:
         env:
           CLOUDSDK_PYTHON: python3
         run: |
+          gcloud auth list
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
             --ssh-flag="-o ServerAliveInterval=30 -o ServerAliveCountMax=10" \
             --command="
