@@ -146,6 +146,7 @@ jobs:
             --update-secrets "DB_URL=CLOUDSQL_URL:latest" \
             --update-secrets "DB_USER=CLOUDSQL_USER:latest" \
             --update-secrets "DB_PASSWORD=CLOUDSQL_PASSWORD:latest" \
+            --remove-secrets "CLOUDSQL_HOST,CLOUDSQL_DB_NAME" \
             --vpc-connector flash-sale-connector \
             --min-instances 0 \
             --max-instances 3 \
