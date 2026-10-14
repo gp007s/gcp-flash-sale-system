@@ -11,12 +11,16 @@ env:
   VM_NAME: flash-sale-vm-1
   VM_NAME_2: flash-sale-vm-2
   CLOUD_RUN_SERVICE: flash-sale-fulfilment
+  JAR_GCS_PATH: gs://gcp-flash-sale-receipts/deploy/app.jar
 
 jobs:
-  # ── Job 0: Build JAR once, share to all deploy jobs ───────────────────────
+  # ── Job 0: Build JAR once, upload to GCS ──────────────────────────────────
   build:
     name: Build JAR
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -28,12 +32,18 @@ jobs:
       - name: Build JAR
         run: mvn -B clean package -DskipTests
 
-      - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
         with:
-          name: app-jar
-          path: target/gcp-flash-sale-system-0.0.1.jar
-          retention-days: 1
+          workload_identity_provider: 'projects/568677222977/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'flash-sale-cicd@gcp-flash-sale-project.iam.gserviceaccount.com'
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload JAR to GCS
+        run: |
+          gsutil cp target/gcp-flash-sale-system-0.0.1.jar ${{ env.JAR_GCS_PATH }}
+          echo "JAR uploaded: $(gsutil stat ${{ env.JAR_GCS_PATH }} | grep 'Content-Length')"
 
   # ── Job 1: Deploy API role to VM-1 ────────────────────────────────────────
   deploy-vm1:
@@ -44,12 +54,6 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Download JAR artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-jar
-          path: target/
-
       - id: auth
         uses: google-github-actions/auth@v2
         with:
@@ -61,19 +65,12 @@ jobs:
       - name: Install NumPy for faster IAP tunneling
         run: pip3 install --break-system-packages numpy
 
-      - name: Copy JAR to VM-1
-        env:
-          CLOUDSDK_PYTHON: python3
-        run: |
-          gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            ${{ env.VM_NAME }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
-
-      - name: Restart app on VM-1
+      - name: Deploy JAR and restart VM-1
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command="sudo systemctl restart flash-sale && sleep 5 && curl -s localhost:8080/health"
+            --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar && sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
 
   # ── Job 2: Deploy API role to VM-2 ────────────────────────────────────────
   deploy-vm2:
@@ -84,12 +81,6 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Download JAR artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-jar
-          path: target/
-
       - id: auth
         uses: google-github-actions/auth@v2
         with:
@@ -101,19 +92,12 @@ jobs:
       - name: Install NumPy for faster IAP tunneling
         run: pip3 install --break-system-packages numpy
 
-      - name: Copy JAR to VM-2
-        env:
-          CLOUDSDK_PYTHON: python3
-        run: |
-          gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            ${{ env.VM_NAME_2 }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
-
-      - name: Restart app on VM-2
+      - name: Deploy JAR and restart VM-2
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command="sudo systemctl restart flash-sale && sleep 5 && curl -s localhost:8080/health"
+            --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar && sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
 
   # ── Job 3: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
