@@ -30,8 +30,8 @@ ExecStart=/usr/bin/java \
   -jar /tmp/app.jar
 Restart=on-failure
 RestartSec=5
-StandardOutput=append:/tmp/output.log
-StandardError=append:/tmp/output.log
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
