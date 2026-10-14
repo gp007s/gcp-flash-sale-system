@@ -67,6 +67,7 @@ jobs:
           echo "ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
 
       - name: Restart app on VM-1
+        continue-on-error: true
         env:
           CLOUDSDK_PYTHON: python3
         run: |
@@ -127,6 +128,7 @@ jobs:
           echo "ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_API_KEY --project=${{ env.PROJECT_ID }})" >> $GITHUB_ENV
 
       - name: Restart app on VM-2
+        continue-on-error: true
         env:
           CLOUDSDK_PYTHON: python3
         run: |
