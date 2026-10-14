@@ -70,6 +70,7 @@ jobs:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --ssh-flag="-o ServerAliveInterval=30" \
             --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar && sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
 
   # ── Job 2: Deploy API role to VM-2 ────────────────────────────────────────
@@ -97,6 +98,7 @@ jobs:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
+            --ssh-flag="-o ServerAliveInterval=30" \
             --command="gsutil cp ${{ env.JAR_GCS_PATH }} /tmp/app.jar && sudo systemctl restart flash-sale && sleep 8 && curl -s localhost:8080/health"
 
   # ── Job 3: Build and deploy fulfilment role to Cloud Run ──────────────────
