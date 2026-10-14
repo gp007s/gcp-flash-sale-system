@@ -46,14 +46,14 @@ jobs:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            ${{ env.VM_NAME }}:~/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
+            ${{ env.VM_NAME }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
 
       - name: Copy JAR to VM-2
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute scp target/gcp-flash-sale-system-0.0.1.jar \
-            ${{ env.VM_NAME_2 }}:~/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
+            ${{ env.VM_NAME_2 }}:/tmp/app.jar --zone=${{ env.ZONE }} --tunnel-through-iap
 
       - name: Ensure Java 17 is installed on VM-1
         env:
@@ -78,14 +78,14 @@ jobs:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command="pkill -f app.jar || true; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar ~/app.jar > /tmp/output.log 2>&1 & disown"
+            --command="pkill -f /tmp/app.jar 2>/dev/null; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar /tmp/app.jar > /tmp/output.log 2>&1 &"
 
       - name: Restart the app on VM-2
         env:
           CLOUDSDK_PYTHON: python3
         run: |
           gcloud compute ssh ${{ env.VM_NAME_2 }} --zone=${{ env.ZONE }} --tunnel-through-iap \
-            --command="pkill -f app.jar || true; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar ~/app.jar > /tmp/output.log 2>&1 & disown"
+            --command="pkill -f /tmp/app.jar 2>/dev/null; nohup java -Dspring.data.redis.host=$REDIS_HOST -Dspring.data.redis.port=$REDIS_PORT -DADMIN_API_KEY=$ADMIN_KEY -jar /tmp/app.jar > /tmp/output.log 2>&1 &"
 
   # ── Job 2: Build and deploy fulfilment role to Cloud Run ──────────────────
   deploy-fulfilment:
