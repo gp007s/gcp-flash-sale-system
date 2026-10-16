@@ -38,12 +38,12 @@ public class NotificationService {
 
     public void sendOrderNotification(OrderFulfillmentDTO order) throws Exception {
         String body = String.format(
-                "Order %s fulfilled for %s — %s x%d — $%d",
+                "{\"orderId\":\"%s\",\"customerEmail\":\"%s\",\"item\":\"%s\",\"quantity\":%d,\"status\":\"fulfilled\"}",
                 order.getOrderId(),
-                order.getUserName(),
+                order.getEmailAddress(),
                 order.getItemDetails(),
-                order.getQuantity(),
-                order.getPaymentAmount());
+                order.getQuantity());
+
         PubsubMessage message = PubsubMessage.newBuilder()
                 .setData(ByteString.copyFromUtf8(body))
                 .build();
