@@ -2,7 +2,7 @@ name: Deploy Flash Sale System
 
 on:
   push:
-    branches: [main, release, cloud-function-notification]
+    branches: [main, release]
 
 env:
   PROJECT_ID: gcp-flash-sale-project
